@@ -76,26 +76,42 @@ class MosaicConstructor:
                 filtered.append(word)
         return filtered
 
-    def get_similar_chunks(self, line, num_candidates, remove_stopwords=False, concatenate=False):
-        similar_chunks = []
+    def get_similar_chunks(self, line, num_candidates, remove_stopwords=False, concatenate=False, offset=0):
+        similar_chunks = {}
         # replace new lines with white space then split into words
         narrative_words = self.tokenify(line, remove_stopwords)
         
         # get all chunks that contain words from the narrative line
         for word in narrative_words:
-            chunks = self.index.get_dialogue_chunks(word)
-            similar_chunks.extend(chunks)
+            chunk_ids, chunks = self.index.get_dialogue_chunks(word)
+            for i in range(0, len(chunk_ids)):
+                similar_chunks[chunk_ids[i]] = chunks[i]
 
         print("Found %d valid chunks, computing similarity now..." % len(similar_chunks))
         
         # find the similarity for each line
-        candidate_chunks = {}
-        for chunk in similar_chunks:
-            if chunk not in candidate_chunks:
+        candidate_ids = {}
+        for chunk_id, chunk in similar_chunks.items():
+            if chunk not in candidate_ids:
                 chunk_words = self.tokenify(chunk, remove_stopwords)
                 sim = self.model.n_similarity(self.in_vocab(narrative_words), self.in_vocab(chunk_words))
-                candidate_chunks[chunk] = sim
+                candidate_ids[chunk_id] = sim
         
+        # get offset chunks if necessary
+        offset_chunks = {}
+        if offset != 0:
+            for chunk_id in candidate_ids:
+                offset_id, offset_chunk = self.index.get_offset_chunk(chunk_id, offset)
+                offset_chunks[offset_id] = candidate_ids[chunk_id]
+                # to add the text
+                similar_chunks[offset_id] = offset_chunk
+            candidate_ids = offset_chunks
+
+        # replace ids with text
+        candidate_chunks = {}
+        for chunk_id, sim in candidate_ids.items():
+            candidate_chunks[similar_chunks[chunk_id]] = sim
+
         # return top n candidates
         sorted_candidates = sorted(candidate_chunks.items(), key=lambda x: x[1], reverse=True)
         if len(sorted_candidates) >= num_candidates:
@@ -103,10 +119,10 @@ class MosaicConstructor:
         else:
             return sorted_candidates
 
-    def generate(self, num_candidates, interactive=True):
+    def generate(self, num_candidates, interactive=True, offset=0, num_unsupervised=0):
         for line in self.narrative:
             print("\nMatching --> %s" % line)
-            chunks = self.get_similar_chunks(line, num_candidates, remove_stopwords=True)
+            chunks = self.get_similar_chunks(line, num_candidates, remove_stopwords=True, offset=offset)
             for i, candidate in enumerate(chunks):
                 print("%d: %s" % (i, candidate))
             if interactive:
@@ -117,7 +133,7 @@ class MosaicConstructor:
 
     def print_play(self):
         for line in self.play.get_lines():
-            print("%s.\n\t%s" % (line[0], line[1][0]))
+            print("\n%s.\n\t%s" % (line[0], line[1][0]))
 
     def save_play(self, file_path):
         with open(file_path, "w") as f:
@@ -138,8 +154,10 @@ if __name__ == "__main__":
 
     print("starting generation")
     num_candidates = int(sys.argv[4])
-    mosaic.generate(num_candidates)
+    offset = int(sys.argv[5])
+    num_unsupervised = int(sys.argv[6])
+    mosaic.generate(num_candidates, offset=offset, num_unsupervised=num_unsupervised)
 
     mosaic.print_play()
 
-    mosaic.save_play(sys.argv[5])
+    mosaic.save_play(sys.argv[7])

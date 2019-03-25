@@ -140,7 +140,10 @@ class WordDialogueIndex:
     
     # lookup in index from word
     def get_chunk_ids(self, key):
-        return self.index[key]
+        if key in self.index:
+            return self.index[key]
+        else:
+            return None
 
     # lookup text from id
     def get_text_from_id(self, chunk_id):
@@ -148,21 +151,33 @@ class WordDialogueIndex:
         author = keys[0]
         play = keys[1]
         number = int(keys[2])
-        return self.dialogue_text[author][play][number]
-
+        if number in range(0, len(self.dialogue_text[author][play])):
+            return self.dialogue_text[author][play][number]
+        else:
+            return "Invalid"
     # stems word and gets dialogue chunks stored in the index for the stem
     def get_dialogue_chunks(self, word):
         stemmed_word = self.stem_word(word)
         chunk_ids = self.get_chunk_ids(stemmed_word)
-        chunks = []
-        for id in chunk_ids:
-            chunks.append(self.get_text_from_id(id))
-        return chunk_ids, chunks
+        if chunk_ids != None:
+            chunks = []
+            for id in chunk_ids:
+                chunk = self.get_text_from_id(id)
+                if chunk != None:
+                    chunks.append(chunk)
+            return chunk_ids, chunks
+        else:
+            return [], []
 
     # function to get other chunks in proximity to a provided chunk id
     def get_offset_chunk(self, chunk_id, offset):
         keys = chunk_id.split("-")
         offset_id = "%s-%s-%d" % (keys[0], keys[1], int(keys[2]) + offset)
+        offset_chunk = self.get_text_from_id(offset_id)
+        if offset_chunk == "Invalid":
+            print("Cannot apply offset %d to chunk id %s" % (offset, chunk_id))
+            print("Using original...")
+            offset_chunk = self.get_text_from_id(chunk_id)
         return offset_id, self.get_text_from_id(offset_id)
 
     def get_index_info(self):
@@ -174,7 +189,14 @@ if __name__ == "__main__":
 
     # need to handle char_case, new line vs. same line, and character delim
     
-    index = WordDialogueIndex()
+    index_path = sys.argv[3]
+    new = sys.argv[4]
+    if new == "new":
+        index = WordDialogueIndex()
+    else:
+        with open(index_path, "rb") as obj_file:
+            index = pickle.load(obj_file)
+    
     index.add_plays_from_author(corpus_root, author)
 
     chunk_ids, chunks = index.get_dialogue_chunks('chuck')
@@ -184,5 +206,5 @@ if __name__ == "__main__":
     offset_id, offset_chunk = index.get_offset_chunk(chunk_ids[10], -3)
     print("%s --> %s" % (offset_id, offset_chunk))
     
-    with open(sys.argv[3], "wb") as obj_file:
+    with open(index_path, "wb") as obj_file:
         pickle.dump(index, obj_file)
