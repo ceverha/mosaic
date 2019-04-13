@@ -28,12 +28,17 @@ class MosaicPlay:
             self.curr_char_index = 0
         return output
 
-    def add_line(self, line):
+    def add_line(self, line, verbose=False):
         full_line = [self.next_char(), line]
         self.lines.append(full_line)
+        if verbose:
+            print("\n%s.\n\t%s" % (full_line[0], full_line[1][0]))
 
     def get_lines(self):
         return self.lines
+
+    def get_length(self):
+        return len(self.lines)
 
 class MosaicConstructor:
     def __init__(self):
@@ -119,17 +124,23 @@ class MosaicConstructor:
         else:
             return sorted_candidates
 
-    def generate(self, num_candidates, interactive=True, offset=0, num_unsupervised=0):
-        for line in self.narrative:
-            print("\nMatching --> %s" % line)
-            chunks = self.get_similar_chunks(line, num_candidates, remove_stopwords=True, offset=offset)
-            for i, candidate in enumerate(chunks):
-                print("%d: %s" % (i, candidate))
-            if interactive:
-                chunk_index = int(input("Choose a candidate to add to the play: "))
-            else:
-                chunk_index = 0
-            self.play.add_line(chunks[chunk_index])
+    # defaults to 1 candidate with two unsupervised replies
+    def generate(self, num_candidates=1, offset=1, pattern_string="0,0"):
+        
+        output_pattern = pattern_string.split(",")
+
+        for narrative_line in self.narrative:
+            source_line = narrative_line
+            for output_type in output_pattern:
+                if output_type == 0:
+                    similar_chunks = self.get_similar_chunks(source_line, num_candidates, remove_stopwords=True, offset=offset)
+                    for i, candidate in enumerate(chunks):
+                        print("%d: %s" % (i, candidate))
+                    chunk_index = int(input("Choose a candidate to add to the play: "))
+                    source_line = chunks[chunk_index]
+                if output_type == 1:
+                    source_line = input("Write a reply to the above line: ")
+                self.play.add_line(source_line, True)
 
     def print_play(self):
         for line in self.play.get_lines():
@@ -146,17 +157,18 @@ if __name__ == "__main__":
     print("loading model")
     mosaic.load_model(sys.argv[1])
     
-    print("loading narrative")
+    print("choose from available narratives")
     mosaic.load_narrative(sys.argv[2])
 
     print("loading index")
     mosaic.load_index(sys.argv[3])
 
     print("starting generation")
-    num_candidates = int(sys.argv[4])
-    offset = int(sys.argv[5])
-    num_unsupervised = int(sys.argv[6])
-    mosaic.generate(num_candidates, offset=offset, num_unsupervised=num_unsupervised)
+    num_candidates = 5
+    # offset of 1 means the system will select the reply to the most similar piece of dialogue
+    offset = 1
+    pattern_string = "0,0,0,1"
+    mosaic.generate(num_candidates=num_candidates, offset=offset, pattern_string=pattern_string)
 
     mosaic.print_play()
 

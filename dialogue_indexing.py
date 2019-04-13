@@ -75,7 +75,10 @@ class WordDialogueIndex:
     def process_document(self, document):
         document_sections = document.split("\n\n")
         
-        char_delim = "\."
+        if self.char_delim = ".":
+            char_delim = "\."
+        else:
+            char_delim = self.char_delim
         # uppercase names
         match_string = "^[A-Z%s ]{3,}" % char_delim
         
@@ -83,16 +86,23 @@ class WordDialogueIndex:
         self.curr_chunk_index = 0
 
         chunk_list = []
-        for section in document_sections:
+        for i in range(len(document_sections))
             # remove leading and trailing whitespace
-            section = section.strip()
+            section = document_sections[i].strip()
+            input("section: %s" % section)
             match = re.match(match_string, section)
             if match != None:
+                if self.dialogue_pos == 2:
+                    i += 1
+                    section = document_sections[i].strip()
+                    input("next section: %s" % section)
+                    
                 dialogue = self.process_chunk(section)
+                input("dialogue: %s" % dialoue)
                 if dialogue:
                     self.num_dialogue_chunks += 1
                     chunk_list.append(dialogue)
-
+                
         return chunk_list
         
     # breaks document into chunks and adds the chunks to an inverted index
@@ -115,8 +125,13 @@ class WordDialogueIndex:
         
         return chunk_list
 
-    def add_plays_from_author(self, corpus_root, author):
+    def add_play(self, corpus_root, author, path, dialogue_pos, delim):
+        print("unimplemented")
+
+    def add_plays_from_author(self, corpus_root, author, dialogue_pos, delim):
         self.curr_author = author
+        self.dialogue_position = dialogue_pos
+        self.char_delim = delim
         
         # set up index map
         if author in self.dialogue_text:
@@ -186,9 +201,6 @@ class WordDialogueIndex:
 if __name__ == "__main__":
     corpus_root = sys.argv[1]
     author = sys.argv[2]
-
-    # need to handle char_case, new line vs. same line, and character delim
-    
     index_path = sys.argv[3]
     new = sys.argv[4]
     if new == "new":
@@ -197,7 +209,17 @@ if __name__ == "__main__":
         with open(index_path, "rb") as obj_file:
             index = pickle.load(obj_file)
     
-    index.add_plays_from_author(corpus_root, author)
+    # need to handle char_case, new line vs. same line, and character delim
+    
+    # 0 = same line
+    # 1 = next line
+    # 2 = next next line
+    dialogue_position = int(sys.argv[5])
+    
+    # symbol signifying the end of the character name
+    char_delim = sys.argv[6]
+    
+    index.add_plays_from_author(corpus_root, author, dialogue_position, char_delim)
 
     chunk_ids, chunks = index.get_dialogue_chunks('chuck')
     print("%s --> %s" % (chunk_ids[10], chunks[10]))
