@@ -75,7 +75,7 @@ class WordDialogueIndex:
     def process_document(self, document):
         document_sections = document.split("\n\n")
         
-        if self.char_delim = ".":
+        if self.char_delim == ".":
             char_delim = "\."
         else:
             char_delim = self.char_delim
@@ -86,7 +86,7 @@ class WordDialogueIndex:
         self.curr_chunk_index = 0
 
         chunk_list = []
-        for i in range(len(document_sections))
+        for i in range(len(document_sections)):
             # remove leading and trailing whitespace
             section = document_sections[i].strip()
             input("section: %s" % section)
@@ -190,8 +190,8 @@ class WordDialogueIndex:
         offset_id = "%s-%s-%d" % (keys[0], keys[1], int(keys[2]) + offset)
         offset_chunk = self.get_text_from_id(offset_id)
         if offset_chunk == "Invalid":
-            print("Cannot apply offset %d to chunk id %s" % (offset, chunk_id))
-            print("Using original...")
+            # print("Cannot apply offset %d to chunk id %s" % (offset, chunk_id))
+            # print("Using original...")
             offset_chunk = self.get_text_from_id(chunk_id)
         return offset_id, self.get_text_from_id(offset_id)
 

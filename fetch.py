@@ -27,13 +27,14 @@ class MosaicPlay:
         if self.curr_char_index >= len(self.char_names):
             self.curr_char_index = 0
         return output
+    
+    def curr_char(self):
+        return self.char_names[self.curr_char_index]
 
-    def add_line(self, line, verbose=False):
+    def add_line(self, line):
         full_line = [self.next_char(), line]
         self.lines.append(full_line)
-        if verbose:
-            print("\n%s.\n\t%s" % (full_line[0], full_line[1][0]))
-
+        
     def get_lines(self):
         return self.lines
 
@@ -82,24 +83,34 @@ class MosaicConstructor:
         return filtered
 
     def get_similar_chunks(self, line, num_candidates, remove_stopwords=False, concatenate=False, offset=0):
+        oov_chunk = [('The previous line could not be replied to.', 0)]
         similar_chunks = {}
-        # replace new lines with white space then split into words
-        narrative_words = self.tokenify(line, remove_stopwords)
         
+        source_words = self.tokenify(line, remove_stopwords)
+        in_vocab_source = self.in_vocab(source_words)
+        if len(in_vocab_source) < 1:
+            return oov_chunk
+
         # get all chunks that contain words from the narrative line
-        for word in narrative_words:
+        for word in source_words:
             chunk_ids, chunks = self.index.get_dialogue_chunks(word)
             for i in range(0, len(chunk_ids)):
                 similar_chunks[chunk_ids[i]] = chunks[i]
 
-        print("Found %d valid chunks, computing similarity now..." % len(similar_chunks))
-        
+        # print("Found %d valid chunks, computing similarity now..." % len(similar_chunks))        
+        if len(similar_chunks) < 1:
+            return oov_chunk
+
+
         # find the similarity for each line
         candidate_ids = {}
         for chunk_id, chunk in similar_chunks.items():
             if chunk not in candidate_ids:
                 chunk_words = self.tokenify(chunk, remove_stopwords)
-                sim = self.model.n_similarity(self.in_vocab(narrative_words), self.in_vocab(chunk_words))
+                in_vocab_candidate = self.in_vocab(chunk_words)
+                if len(in_vocab_candidate) < 1:
+                    continue
+                sim = self.model.n_similarity(in_vocab_source, in_vocab_candidate)
                 candidate_ids[chunk_id] = sim
         
         # get offset chunks if necessary
@@ -127,49 +138,56 @@ class MosaicConstructor:
     # defaults to 1 candidate with two unsupervised replies
     def generate(self, num_candidates=1, offset=1, pattern_string="0,0"):
         
-        output_pattern = pattern_string.split(",")
-
+        output_pattern = list(map(int, pattern_string.split(",")))
         for narrative_line in self.narrative:
-            source_line = narrative_line
+            source_chunk = narrative_line
+            print("\n%s:\n\t%s" % (self.play.curr_char(), source_chunk))
+            self.play.add_line(source_chunk)
             for output_type in output_pattern:
                 if output_type == 0:
-                    similar_chunks = self.get_similar_chunks(source_line, num_candidates, remove_stopwords=True, offset=offset)
-                    for i, candidate in enumerate(chunks):
+                    similar_chunks = self.get_similar_chunks(source_chunk, num_candidates, remove_stopwords=True, offset=offset)
+                    if num_candidates > 1:
+                        for i, candidate in enumerate(similar_chunks):
+                            if i > num_candidates:
+                                break
                         print("%d: %s" % (i, candidate))
-                    chunk_index = int(input("Choose a candidate to add to the play: "))
-                    source_line = chunks[chunk_index]
+                        chunk_index = int(input("Choose a candidate to add to the play: "))
+                    else:
+                        chunk_index = 0
+                    source_chunk = similar_chunks[chunk_index][0]
+                    print("\n%s:\n\t%s" % (self.play.curr_char(), source_chunk))
                 if output_type == 1:
-                    source_line = input("Write a reply to the above line: ")
-                self.play.add_line(source_line, True)
+                    source_chunk = input("\n%s:\n\t" % self.play.curr_char())
+                self.play.add_line(source_chunk)
 
     def print_play(self):
         for line in self.play.get_lines():
-            print("\n%s.\n\t%s" % (line[0], line[1][0]))
+            print("\n%s:\n\t%s" % (line[0], line[1]))
 
     def save_play(self, file_path):
         with open(file_path, "w") as f:
             for line in self.play.get_lines():
-                f.write("\n%s.\n\t%s\n" % (line[0], line[1][0]))
+                f.write("\n%s:\n\t%s\n" % (line[0], line[1]))
 
 if __name__ == "__main__":
     mosaic = MosaicConstructor()
 
-    print("loading model")
-    mosaic.load_model(sys.argv[1])
-    
-    print("choose from available narratives")
+    print("loading narrative: %s" % sys.argv[2])
     mosaic.load_narrative(sys.argv[2])
 
-    print("loading index")
+    print("loading index: %s" % sys.argv[3])
     mosaic.load_index(sys.argv[3])
 
+    print("loading model: %s" % sys.argv[1])
+    mosaic.load_model(sys.argv[1])
+    
     print("starting generation")
-    num_candidates = 5
+    num_candidates = 1
     # offset of 1 means the system will select the reply to the most similar piece of dialogue
     offset = 1
-    pattern_string = "0,0,0,1"
+    pattern_string = "1,0,1,0"
     mosaic.generate(num_candidates=num_candidates, offset=offset, pattern_string=pattern_string)
 
     mosaic.print_play()
 
-    mosaic.save_play(sys.argv[7])
+    mosaic.save_play(sys.argv[4])
