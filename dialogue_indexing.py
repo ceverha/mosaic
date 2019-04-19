@@ -16,8 +16,8 @@ class WordDialogueIndex:
         self.num_words = 0
         self.num_dialogue_chunks = 0
         self.num_entries = 0
-        self.english_stopwords= set(stopwords.words('english'))
         self.dialogue_text = {}
+        self.english_stopwords= set(stopwords.words('english'))
         self.unique_chunks = set()
         
     #################################################
@@ -56,33 +56,18 @@ class WordDialogueIndex:
 
     # processes identified chunks of dialogue by adding entries
     # to an index for all non-stop words in the chunk
-    def process_chunk(self, section):
-        regex = "^[A-Z\.]{3,}[ ]+"
-        match = re.match(regex, section)
-        if match == None:
-            return False
-        dialogue = section[match.span()[1]:]
-        
+    def process_chunk(self, dialogue):
         chunk_key = "%s-%s-%d" % (self.curr_author, self.curr_play, self.curr_chunk_index)
         self.curr_chunk_index += 1
         for word in dialogue.split(" "):
             if self.valid_word(word):
                 if self.add_entry(word, chunk_key):
                     self.num_words += 1
-
-        return dialogue
         
     # processes read document, identifying chunks of dialogue
-    def process_document(self, document):
+    # finish changing to regex and dialogue pos from file
+    def process_document(self, document, dialogue_pos, regex):
         document_sections = document.split("\n\n")
-
-        char_delim = self.char_delim
-        if char_delim == ".":
-            char_delim = "\."
-        if char_delim == "--":
-            char_delim = "\-\-"
-        # uppercase names
-        match_string = "^[A-Z%s ]{3,}" % char_delim
         
         # for writing the chunk
         self.curr_chunk_index = 0
@@ -91,13 +76,20 @@ class WordDialogueIndex:
         for i in range(len(document_sections)):
             # remove leading and trailing whitespace
             section = document_sections[i].strip()
-            match = re.match(match_string, section)
+            
+            match = re.match(regex, section)
             if match != None:
-                if self.dialogue_position == 2:
+                dialogue = False
+                if dialogue_pos == 'same':
+                    dialogue = section[match.span()[1]:]
+                if dialogue_pos == 'next':
                     i += 1
-                    section = document_sections[i].strip()
-                    
-                dialogue = self.process_chunk(section)
+                    if i >= len(document_sections):
+                        continue
+                    dialogue = document_sections[i].strip()
+                # input(section)
+                # input(dialogue)
+                self.process_chunk(dialogue)
                 if dialogue:
                     self.num_dialogue_chunks += 1
                     chunk_list.append(dialogue)
@@ -106,45 +98,78 @@ class WordDialogueIndex:
         
     # breaks document into chunks and adds the chunks to an inverted index
     # on non-stop words in each chunk
-    def add_document(self, document_path):
+    def add_document(self, document_path, dialogue_pos, regex):
         # for count display
         prev_num_words = self.num_words
         prev_num_dialogue_chunks = self.num_dialogue_chunks
         prev_num_entries = self.num_entries
         
         document = self.read_document(document_path)
-        chunk_list = self.process_document(document)
+        chunk_list = self.process_document(document, dialogue_pos, regex)
         
         num_words = self.num_words - prev_num_words
         num_dialogue_chunks = self.num_dialogue_chunks - prev_num_dialogue_chunks
         num_entries = self.num_entries - prev_num_entries
-        print("%d words added (%d --> %d)" % (num_words, prev_num_words, self.num_words))
+        # print("%d words added (%d --> %d)" % (num_words, prev_num_words, self.num_words))
         print("%d chunks added (%d --> %d)" % (num_dialogue_chunks, prev_num_dialogue_chunks, self.num_dialogue_chunks))
-        print("%d entries added (%d --> %d)" % (num_entries, prev_num_entries, self.num_entries))
-        
+        # print("%d entries added (%d --> %d)" % (num_entries, prev_num_entries, self.num_entries))
         return chunk_list
 
     def add_play(self, corpus_root, author, path, dialogue_pos, delim):
         print("unimplemented")
 
-    def add_plays_from_author(self, corpus_root, author, dialogue_pos, delim):
+    # returns dict mapping folder names of plays to manually written regex 
+    # strings for identifying dialogue in each file
+    # TODO
+    # add entry in regex.txt (rename parse_info.txt) for dialogue position
+    # add dialogue position as argument 
+    def get_parse_info(self, corpus_root, author):
+        regex_path = "%s/%s/%s" % (corpus_root, author, "plays/regex.txt")
+        with open(regex_path, "r") as regex_file:
+            regex_lines = regex_file.read().split("\n")
+            regex_dict = {}
+            pos_dict = {}
+            for line in regex_lines:
+                if line == '':
+                    break
+                data = line.split(" == ")
+                pos_dict[data[0]] = data[1]
+                if data[1] == '0':
+                    pos_dict[data[0]] = "same"
+                if data[1] == '2':
+                    pos_dict[data[0]] = "next"
+                regex_dict[data[0]] = data[2]
+
+            return pos_dict, regex_dict
+            
+    def add_plays_from_author(self, corpus_root, author):
         self.curr_author = author
-        self.dialogue_position = dialogue_pos
-        self.char_delim = delim
         
         # set up index map
         if author in self.dialogue_text:
             author_entry = self.dialogue_text[author]
         else:
             author_entry = {}
-        
+    
+        # get author regex file
+        # authors/<author>/plays/regex.txt
+        pos_dict, regex_dict = self.get_parse_info(corpus_root, author)
+
         author_folder = "%s/%s/plays" % (corpus_root, author)
+        print("\nIndexing %d plays from %s" % (len(os.listdir(author_folder))-1, author))
         for play in os.listdir(author_folder):
-            print(play)
-            self.curr_play = play
-            play_entry = index.add_document("%s/%s/play.txt" % (author_folder, play))
-            author_entry[play] = play_entry
-            print("")
+            play_folder = "%s/%s" % (author_folder, play)
+            if Path(play_folder).is_dir():
+                play_path  = play_folder + "/play.txt"
+                dialogue_pos = pos_dict[play]
+                regex = regex_dict[play]
+                if dialogue_pos == '-1' or regex == '-1':
+                    print("Skipping play: %s\n" % play)
+                    continue
+                print(play)
+                self.curr_play = play
+                play_entry = index.add_document(play_path, dialogue_pos, regex)
+                author_entry[play] = play_entry
 
         self.dialogue_text[author] = author_entry
 
@@ -212,17 +237,7 @@ if __name__ == "__main__":
         with open(index_path, "rb") as obj_file:
             index = pickle.load(obj_file)
     
-    # need to handle char_case, new line vs. same line, and character delim
-    
-    # 0 = same line
-    # 1 = next line
-    # 2 = next next line
-    dialogue_position = int(sys.argv[5])
-    
-    # symbol signifying the end of the character name
-    char_delim = sys.argv[6]
-    
-    index.add_plays_from_author(corpus_root, author, dialogue_position, char_delim)
+    index.add_plays_from_author(corpus_root, author)
 
     # example usage
     # chunk_ids, chunks = index.get_dialogue_chunks('chuck')
