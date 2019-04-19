@@ -18,6 +18,7 @@ class WordDialogueIndex:
         self.num_entries = 0
         self.english_stopwords= set(stopwords.words('english'))
         self.dialogue_text = {}
+        self.unique_chunks = set()
         
     #################################################
     # DATA INPUT #
@@ -50,20 +51,20 @@ class WordDialogueIndex:
             # add new word with new entry
             self.index[word] = [chunk_id]
             self.num_entries += 1
+            self.unique_chunks.add(chunk_id)
             return True
 
     # processes identified chunks of dialogue by adding entries
     # to an index for all non-stop words in the chunk
     def process_chunk(self, section):
-        regex = "^([A-Z\. ]+)[\[a-z]"
+        regex = "^[A-Z\.]{3,}[ ]+"
         match = re.match(regex, section)
         if match == None:
             return False
-        dialogue = section[match.span()[1] - 2:]
-
+        dialogue = section[match.span()[1]:]
+        
         chunk_key = "%s-%s-%d" % (self.curr_author, self.curr_play, self.curr_chunk_index)
         self.curr_chunk_index += 1
-
         for word in dialogue.split(" "):
             if self.valid_word(word):
                 if self.add_entry(word, chunk_key):
@@ -74,11 +75,12 @@ class WordDialogueIndex:
     # processes read document, identifying chunks of dialogue
     def process_document(self, document):
         document_sections = document.split("\n\n")
-        
-        if self.char_delim == ".":
+
+        char_delim = self.char_delim
+        if char_delim == ".":
             char_delim = "\."
-        else:
-            char_delim = self.char_delim
+        if char_delim == "--":
+            char_delim = "\-\-"
         # uppercase names
         match_string = "^[A-Z%s ]{3,}" % char_delim
         
@@ -89,16 +91,13 @@ class WordDialogueIndex:
         for i in range(len(document_sections)):
             # remove leading and trailing whitespace
             section = document_sections[i].strip()
-            input("section: %s" % section)
             match = re.match(match_string, section)
             if match != None:
-                if self.dialogue_pos == 2:
+                if self.dialogue_position == 2:
                     i += 1
                     section = document_sections[i].strip()
-                    input("next section: %s" % section)
                     
                 dialogue = self.process_chunk(section)
-                input("dialogue: %s" % dialoue)
                 if dialogue:
                     self.num_dialogue_chunks += 1
                     chunk_list.append(dialogue)
@@ -159,6 +158,10 @@ class WordDialogueIndex:
             return self.index[key]
         else:
             return None
+
+    # get all chunk ids
+    def get_all_chunk_ids(self):
+        return list(self.unique_chunks)
 
     # lookup text from id
     def get_text_from_id(self, chunk_id):
@@ -221,12 +224,13 @@ if __name__ == "__main__":
     
     index.add_plays_from_author(corpus_root, author, dialogue_position, char_delim)
 
-    chunk_ids, chunks = index.get_dialogue_chunks('chuck')
-    print("%s --> %s" % (chunk_ids[10], chunks[10]))
-    offset_id, offset_chunk = index.get_offset_chunk(chunk_ids[10], 3)
-    print("%s --> %s" % (offset_id, offset_chunk))
-    offset_id, offset_chunk = index.get_offset_chunk(chunk_ids[10], -3)
-    print("%s --> %s" % (offset_id, offset_chunk))
+    # example usage
+    # chunk_ids, chunks = index.get_dialogue_chunks('chuck')
+    # print("%s --> %s" % (chunk_ids[10], chunks[10]))
+    # offset_id, offset_chunk = index.get_offset_chunk(chunk_ids[10], 3)
+    # print("%s --> %s" % (offset_id, offset_chunk))
+    # offset_id, offset_chunk = index.get_offset_chunk(chunk_ids[10], -3)
+    # print("%s --> %s" % (offset_id, offset_chunk))
     
     with open(index_path, "wb") as obj_file:
         pickle.dump(index, obj_file)

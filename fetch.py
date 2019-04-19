@@ -97,6 +97,9 @@ class MosaicConstructor:
             for i in range(0, len(chunk_ids)):
                 similar_chunks[chunk_ids[i]] = chunks[i]
 
+        # add option to circumvent above step, just return all dialogue chunks and
+        # compute similarity against all of them
+
         # print("Found %d valid chunks, computing similarity now..." % len(similar_chunks))        
         if len(similar_chunks) < 1:
             return oov_chunk
@@ -108,7 +111,11 @@ class MosaicConstructor:
             if chunk not in candidate_ids:
                 chunk_words = self.tokenify(chunk, remove_stopwords)
                 in_vocab_candidate = self.in_vocab(chunk_words)
+                # if for some reason the chunk is empty
                 if len(in_vocab_candidate) < 1:
+                    continue
+                # if they are the same chunk
+                if in_vocab_candidate == in_vocab_source:
                     continue
                 sim = self.model.n_similarity(in_vocab_source, in_vocab_candidate)
                 candidate_ids[chunk_id] = sim
@@ -185,7 +192,7 @@ if __name__ == "__main__":
     num_candidates = 1
     # offset of 1 means the system will select the reply to the most similar piece of dialogue
     offset = 1
-    pattern_string = "1,0,1,0"
+    pattern_string = "0,1"
     mosaic.generate(num_candidates=num_candidates, offset=offset, pattern_string=pattern_string)
 
     mosaic.print_play()
