@@ -45,6 +45,7 @@ class WordDialogueIndex:
             # add word to pre-existing entry
             if chunk_id not in self.index[word]:
                 self.index[word].append(chunk_id)
+                self.unique_chunks.add(chunk_id)
                 self.num_entries += 1
             return False
         else:
@@ -184,9 +185,18 @@ class WordDialogueIndex:
         else:
             return None
 
-    # get all chunk ids
-    def get_all_chunk_ids(self):
-        return list(self.unique_chunks)
+    # get all chunks
+    def get_all_chunks(self):
+        chunk_ids = list(self.unique_chunks)
+        chunks = []
+        for id in chunk_ids:
+            chunk = self.get_text_from_id(id)
+            if chunk != None:
+                chunks.append(chunk)
+        similar_chunks = {}
+        for i in range(0, len(chunk_ids)):
+            similar_chunks[chunk_ids[i]] = chunks[i]
+        return similar_chunks
 
     # lookup text from id
     def get_text_from_id(self, chunk_id):
@@ -208,9 +218,12 @@ class WordDialogueIndex:
                 chunk = self.get_text_from_id(id)
                 if chunk != None:
                     chunks.append(chunk)
-            return chunk_ids, chunks
+            similar_chunks = {}
+            for i in range(0, len(chunk_ids)):
+                similar_chunks[chunk_ids[i]] = chunks[i]
+            return similar_chunks
         else:
-            return [], []
+            return {}
 
     # function to get other chunks in proximity to a provided chunk id
     def get_offset_chunk(self, chunk_id, offset):
