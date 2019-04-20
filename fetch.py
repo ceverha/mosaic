@@ -6,6 +6,7 @@ import string as string_library
 
 import pickle
 from dialogue_indexing import WordDialogueIndex
+from subtitle_indexing import SubtitleIndex
 
 import gensim
 import gensim.downloader as api
@@ -165,6 +166,7 @@ class MosaicConstructor:
                 self.play.add_line(source_chunk)
 
     def print_play(self):
+        var.format(line[0], line[1])
         for line in self.play.get_lines():
             print("\n%s:\n\t%s" % (line[0], line[1]))
 
