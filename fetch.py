@@ -44,6 +44,9 @@ class MosaicPlay:
 
     def add_sim_pair(self, left, right):
         self.sim_pairs.append([left, right])
+        
+    def get_sim_pairs(self):
+        return self.sim_pairs
 
     def get_length(self):
         return len(self.lines)
@@ -90,8 +93,8 @@ class MosaicConstructor:
                 filtered.append(word)
         return filtered
 
-    def get_similar_chunks(self, line, num_candidates, remove_stopwords=False, concatenate=False, offset=0, use_index=True):
-        oov_chunk = [('The previous line could not be replied to.', 0)]
+    def get_similar_chunks(self, line, remove_stopwords=False, concatenate=False, offset=0, use_index=True):
+        oov_chunk = ['The previous line could not be replied to.', 0]
         
         source_words = self.tokenify(line, remove_stopwords)
         in_vocab_source = self.in_vocab(source_words)
@@ -126,31 +129,25 @@ class MosaicConstructor:
                 sim = self.model.n_similarity(in_vocab_source, in_vocab_candidate)
                 candidate_ids[chunk_id] = sim
 
-        
+        sorted_candidates = sorted(candidate_ids.items(), key=lambda x: x[1], reverse=True)
+        most_similar = sorted_candidates[0]
+        # print(most_similar)
+        most_similar_id = most_similar[0]
+        most_similar_chunk = similar_chunks[most_similar_id]
+
+        self.play.add_sim_pair(line, most_similar_chunk)
+
         # get offset chunks if necessary
-        offset_chunks = {}
         if offset != 0:
-            for chunk_id in candidate_ids:
-                offset_id, offset_chunk = self.index.get_offset_chunk(chunk_id, offset)
-                offset_chunks[offset_id] = candidate_ids[chunk_id]
-                # to add the text
-                similar_chunks[offset_id] = offset_chunk
-            candidate_ids = offset_chunks
-
-        # replace ids with text
-        candidate_chunks = {}
-        for chunk_id, sim in candidate_ids.items():
-            candidate_chunks[similar_chunks[chunk_id]] = sim
-
-        # return top n candidates
-        sorted_candidates = sorted(candidate_chunks.items(), key=lambda x: x[1], reverse=True)
-        if len(sorted_candidates) >= num_candidates:
-            return sorted_candidates[0:num_candidates]
+            offset_id, offset_chunk = self.index.get_offset_chunk(most_similar_id, offset)
+            return [offset_chunk, most_similar[1]]
         else:
-            return sorted_candidates
+            return [most_similar_chunk, most_similar[1]] 
+
+        # return ["text", sim_score]
 
     # defaults to 1 candidate with two unsupervised replies
-    def generate(self, num_candidates=1, offset=1, pattern_string="0,0", use_index=True):
+    def generate(self, offset=1, pattern_string="0,0", use_index=True):
         # for use in saving the play
         narrative_name = os.path.basename(self.narrative_path).strip(".txt")
         self.output_id = f"{narrative_name}_{pattern_string}_{use_index}_{offset}"
@@ -162,16 +159,8 @@ class MosaicConstructor:
             self.play.add_line(source_chunk)
             for output_type in output_pattern:
                 if output_type == 0:
-                    similar_chunks = self.get_similar_chunks(source_chunk, num_candidates, remove_stopwords=False, offset=offset, use_index=use_index)
-                    if num_candidates > 1:
-                        for i, candidate in enumerate(similar_chunks):
-                            if i > num_candidates:
-                                break
-                        print("%d: %s" % (i, candidate))
-                        chunk_index = int(input("Choose a candidate to add to the play: "))
-                    else:
-                        chunk_index = 0
-                    source_chunk = similar_chunks[chunk_index][0]
+                    similar_chunks = self.get_similar_chunks(source_chunk, remove_stopwords=False, offset=offset, use_index=use_index)
+                    source_chunk = similar_chunks[0]
                     print("\n%s:\n\t%s" % (self.play.curr_char(), source_chunk))
                 if output_type == 1:
                     source_chunk = input("\n%s:\n\t" % self.play.curr_char())
@@ -190,9 +179,10 @@ class MosaicConstructor:
             print(f"Saved play at {path}")
         extra_path = f"{folder_path}/{self.output_id}-extra"
         with open(extra_path, "w") as f:
-            for line in self.play.get_lines():
-                f.write("\n%s:\n\t%s\n" % (line[0], line[1]))
-            print(f"Saved play at {path}")
+            f.write("Similarity pairs\n\n")
+            for pair in self.play.get_sim_pairs():
+                f.write("%s\n<===>\n%s\n" % (pair[0], pair[1]))
+
 if __name__ == "__main__":    
     
     mosaic = MosaicConstructor()
@@ -230,7 +220,7 @@ if __name__ == "__main__":
             print(f"Current narrative: {narrative}")
             mosaic.load_narrative(f"{narratives_folder}/{narrative}")
             print("\nPLAY START\n")
-            mosaic.generate(num_candidates=1, offset=offset, pattern_string=pattern_string, use_index=use_index)
+            mosaic.generate(offset=offset, pattern_string=pattern_string, use_index=use_index)
             print("\nPLAY END\n")
             mosaic.save_play(output_folder)
 
