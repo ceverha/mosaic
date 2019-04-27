@@ -162,10 +162,16 @@ class MosaicConstructor:
             random_index = random.randint(0, 3)
         else:
             random_index = random.randint(0, len(sorted_candidates) - 1)
+
+        # fetch_simple
+        random_index = 0
+
         most_similar = sorted_candidates[random_index]
         
         most_similar_id = most_similar[0]
         
+        input(most_similar_id)
+
         # limit length
         most_similar_chunk = similar_chunks[most_similar_id]
         self.play.add_sim_pair(line, most_similar_chunk)
@@ -188,7 +194,7 @@ class MosaicConstructor:
         self.output_id = f"{narrative_name}_{pattern_string}_{use_index}_{offset}"
 
         output_pattern = list(map(int, pattern_string.split("-")))
-        for narrative_line in self.narrative:
+        for narrative_line in self.narrative[0:1]:
             source_chunk = narrative_line
             print("\n%s:\n\t%s" % (self.play.curr_char(), source_chunk))
             self.play.add_line(source_chunk)
@@ -200,6 +206,69 @@ class MosaicConstructor:
                 if output_type == 1:
                     source_chunk = input("\n%s:\n\t" % self.play.curr_char())
                 self.play.add_line(source_chunk)
+
+    def make_excerpt(self, use_index=True, length=16):
+        narrative_name = os.path.basename(self.narrative_path).strip(".txt")
+        self.output_id = f"{narrative_name}"
+
+        first_line = self.narrative[0]
+        self.play.add_line(first_line)
+        
+        oov_chunk = ['The previous line could not be replied to.', 0]
+        
+        source_words = self.tokenify(first_line, False)
+        in_vocab_source = self.in_vocab(source_words)
+        if len(in_vocab_source) < 1:
+            return oov_chunk
+
+        similar_chunks = {}
+        if use_index:
+            # get all chunks that contain words from the narrative line
+            for word in source_words:
+                chunks_with_word = self.index.get_dialogue_chunks(word)
+                similar_chunks.update(chunks_with_word)
+        else:
+            similar_chunks = self.index.get_all_chunks()
+        
+        print("Found %d valid chunks, computing similarity now..." % len(similar_chunks))        
+        if len(similar_chunks) < 1:
+            return oov_chunk
+
+        # find the similarity for each line
+        candidate_ids = {}
+        for chunk_id, chunk in similar_chunks.items():
+            if chunk not in candidate_ids:
+                chunk_words = self.tokenify(chunk, False)
+                in_vocab_candidate = self.in_vocab(chunk_words)
+                # if for some reason the chunk is empty
+                if len(in_vocab_candidate) < 1:
+                    continue
+                # if they are the same chunk
+                if in_vocab_candidate == in_vocab_source:
+                    continue
+                sim = self.model.n_similarity(in_vocab_source, in_vocab_candidate)
+                candidate_ids[chunk_id] = sim
+
+        sorted_candidates = sorted(candidate_ids.items(), key=lambda x: x[1], reverse=True)
+        
+        # pick randomly from top 4 to make plays non-deterministic
+        if len(sorted_candidates) >= 4:
+            random_index = random.randint(0, 3)
+        else:
+            random_index = random.randint(0, len(sorted_candidates) - 1)
+
+        most_similar = sorted_candidates[random_index]
+        most_similar_id = most_similar[0]
+        most_similar_chunk = similar_chunks[most_similar_id]
+
+        self.play.add_sim_pair(first_line, most_similar_chunk)
+
+        self.play.add_line(most_similar_chunk)
+        prev_id = most_similar_id
+        while self.play.get_length() < length:
+            offset_id, offset_chunk = self.index.get_offset_chunk(prev_id, 1)
+            self.play.add_line(offset_chunk)
+            prev_id = offset_id
 
     # def print_play(self):
     #     var.format(line[0], line[1])
@@ -229,39 +298,26 @@ if __name__ == "__main__":
     if not Path(narratives_folder).is_dir():
         print(f"invalid folder: {narratives_folder}")
 
-    output_repo = sys.argv[4]
-    if not Path(output_repo).is_dir():
-        print(f"invalid folder: {output_repo}")
-
-    # pattern_string = input("Pattern string eg. 0-0 or 1-0: ")
-    pattern_string = sys.argv[5]
-    # offset = int(input("Offset for reply: "))
-    offset = int(sys.argv[6])
-    # use_index = input("Use index? yes or no: ")
-    use_index = sys.argv[7]
-    if use_index == "yes":
-        use_index = True
-    else:
-        use_index = False
-    # characters
-    characters = sys.argv[8].split("-")
+    output_folder = sys.argv[4]
+    if not Path(output_folder).is_dir():
+        print(f"invalid folder: {output_folder}")
 
     print("loading model: %s" % sys.argv[2])
     mosaic.load_model(sys.argv[2])
 
-    print(output_repo)
-    for sub_folder in os.listdir(output_repo):
+    for sub_folder in os.listdir(output_folder):
         print(sub_folder)
-        output_folder = f"{output_repo}/{sub_folder}"
-        print(output_folder)
+        output = f"{output_folder}/{sub_folder}"
+        print(output)
         for narrative in os.listdir(narratives_folder):
-            mosaic.new_play(characters)
+            mosaic.new_play(["A","B"])
             print(f"Current narrative: {narrative}")
             mosaic.load_narrative(f"{narratives_folder}/{narrative}")
             print("\nPLAY START\n")
-            mosaic.generate(offset=offset, pattern_string=pattern_string, use_index=use_index)
+            # mosaic.generate(offset=offset, pattern_string=pattern_string, use_index=use_index)
+            mosaic.make_excerpt(use_index=True, length=16)
             print("\nPLAY END\n")
-            mosaic.save_play(output_folder)
+            mosaic.save_play(output)
 
         # decision = input("Go again with different parameters?")
         # if decision == 'yes':
