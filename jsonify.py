@@ -14,7 +14,7 @@ def read_document(document_path):
 if __name__ == "__main__":
     folder = sys.argv[1]
     # how many times an experiment is added to experiments_to_run
-    num_duplicate = 2
+    num_duplicate = 1
     json_source_dict = {}
     experiments_to_run = []
     verification_codes = []
@@ -31,6 +31,8 @@ if __name__ == "__main__":
                 data = read_document(full_path)
                 # make id legal on firebase
                 id = full_path.replace("/","-")
+                # testing something
+                id = id.replace("all_output-","all_output--")
                 # remove unnecessary experiment info
                 span = re.search("exp_narrative", id).span()
                 id = id[0:span[1]+2]
@@ -47,6 +49,10 @@ if __name__ == "__main__":
     json_source_dict["experiments_to_run"] = experiments_to_run
     json_source_dict["verification_codes"] = verification_codes
     json_source_dict["experiments_finished"] = experiments_finished
+    with open("verif_codes", "w") as verif_file:
+        for code in verification_codes:
+            verif_file.write(code + "\n")
+        print("Wrote codes to verif_codes")
     input("Upload to firebase?")
 
     config = {
