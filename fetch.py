@@ -5,6 +5,8 @@ import sys
 import string as string_library
 import random
 
+import timeit
+
 import pickle
 from dialogue_indexing import WordDialogueIndex
 from subtitle_indexing import SubtitleIndex

@@ -1,0 +1,5 @@
+Protocol,Count,Consistency,Enjoy,Response,Sense,Average
+excerpts,49,2.633,2.939,3.592,2.49,2.913
+human_output,51,2.431,2.745,3.392,2.51,2.77
+computer_output,93,1.71,2.172,2.344,1.742,1.992
+random_output,96,1.427,1.948,1.979,1.552,1.727

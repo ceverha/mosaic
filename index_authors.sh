@@ -9,8 +9,8 @@ python dialogue_indexing.py ../corpus/data/authors james_henry play_dialogue_ind
 python dialogue_indexing.py ../corpus/data/authors maeterlinck_maurice play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors noble_japan_plays play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors oneill play_dialogue_index.obj no
-python dialogue_indexing.py ../corpus/data/authors strindberg play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors shaw_george_benard play_dialogue_index.obj no
+python dialogue_indexing.py ../corpus/data/authors strindberg play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors sudermann_hermann play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors synge_jm play_dialogue_index.obj no
 python dialogue_indexing.py ../corpus/data/authors wilde play_dialogue_index.obj no
