@@ -3,7 +3,7 @@ clear;
 timestamp() {
   date +"%m-%d_%H:%M"
 }
-folder_path=experiment_output/$1-$(timestamp)
+folder_path=experiment_output/$1_$(timestamp)
 mkdir $folder_path
 echo $folder_path
 
